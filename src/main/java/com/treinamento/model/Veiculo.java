@@ -7,13 +7,9 @@ import java.util.Objects;
 @Entity
 @Table(name = "tab_veiculo")
 public class Veiculo {
-    /*
+
         @Id
-        @GeneratedValue(strategy = GenerationType.AUTO)*/
-        @Id
-        @GeneratedValue(generator = "inc")
-        @GenericGenerator(name = "inc", strategy = "increment")//gerador de chave próprio do Hibernate chamado increment, que é o famoso select max + 1.
-        @Column(name = "cod_veiculo")
+        @GeneratedValue(strategy = GenerationType.AUTO)
         private Long codigo;
         @Column(length = 60, nullable = false)
         private String fabricante;
