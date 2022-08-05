@@ -164,16 +164,17 @@ xmlns="http://xmlns.jcp.org/xml/ns/persistence"
 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/persistence http://xmlns.jcp.org/xml/ns/persistence/persistence_2_2.xsd">
 
-    <persistence-unit name="jpa">
-    <provider>org.hibernate.ejb.HibernatePersistence</provider>
+    <persistence-unit name="veiculo_cadastro" >
+        <provider>org.hibernate.ejb.HibernatePersistence</provider>
 
-        <properties>
-            <property name="javax.persistence.jdbc.driver" value="com.mysql.jdbc.Driver" />
-            <property name="javax.persistence.jdbc.url" value="jdbc:mysql://localhost:3306/jpa" />
-            <property name="javax.persistence.jdbc.user" value="sa"/>
-            <property name="javax.persistence.jdbc.password" value=""/>
 
-            <property name="hibernate.dialect" value="org.hibernate.dialect.MySQLDialect"/>
+    <properties>
+            <property name="javax.persistence.jdbc.driver" value="com.mysql.cj.jdbc.Driver"/>
+            <property name="javax.persistence.jdbc.url" value="jdbc:mysql://localhost:3306/veiculo_cadastro?serverTimezone=UTC"/>
+            <property name="javax.persistence.jdbc.user" value="root"/>
+            <property name="javax.persistence.jdbc.password" value="123456"/>
+
+            <property name="hibernate.dialect" value="org.hibernate.dialect.MySQL8Dialect"/>
             <property name="hibernate.show_sql" value="true"/>
             <property name="hibernate.hbm2ddl.auto" value="update"/>
             <property name="hibernate.format_sql" value="true" />
@@ -231,11 +232,6 @@ persistence.xml.
 Ao executar o código, a tabela Veiculo é criada.
 
 
-
-![img_1.png](img_1.png)
-
-
-
 ## @TO-DO-LIST 
 
 Rever essa parte
@@ -261,11 +257,351 @@ Precisaremos de um lugar para colocar a instância compartilhada de
 EntityManagerFactory, onde qualquer código tenha acesso fácil e rápido.
 Criaremos a classe JpaUtil para armazenar a instância em uma variável estática.
 
-Criamos um bloco estático para inicializar a fábrica de Entity Manager. Isso
+Criamos um bloco estático para inicializar a fábrica de Entity Manager que está no arquivo "JPAUtil". Isso
 ocorrerá apenas uma vez, no carregamento da classe. Agora, sempre que
 precisarmos de uma EntityManager, podemos chamar:
+
 EntityManager manager = JpaUtil.getEntityManager();
 
+![img.png](img.png)
+
+## Agora, vamos analisar as alterações que fizemos individualmente.
+
+@Table(name = "tab_veiculo")
+public class Veiculo {
+Especificamos o nome da tabela como tab_veiculo. Se não fizermos isso, o nome
+da tabela será considerado o mesmo nome da classe.
+
+
+@Column(length = 60, nullable = false)
+public String getFabricante() {
+Definimos o tamanho da coluna com 60 e com restrição not null.
+
+@Column(name = "ano_fabricacao", nullable = false)
+public Integer getAnoFabricacao() {
+Especificamos o nome da coluna como ano_fabricacao e com restrição not null. Se
+o nome da coluna não for especificado, por padrão, ela receberá o mesmo nome
+do atributo mapeado.
+
+@Column(precision = 10, scale = 2, nullable = true)
+public Double getValor() {
+Atribuímos a precisão de 10 com escala de 2 casas na coluna de número decimal,
+especificando, ainda, que ela pode receber valores nulos.
+
+
+## Persistindo objetos
+
+Chegou a hora de persistir objetos, ou seja, inserir registros no banco de dados.
+
+classe pacote-> com.treinamento.prinicpal.Teste.class
+
+      //persistir objetos(inserir registros no Bancod e dados)
+        Veiculo veiculo= new Veiculo("Fiat","Fiorino",2015,2015,50000.00);
+
+        manager.persist(veiculo);
+
+Hibernate:
+insert
+into
+tab_veiculo
+(ano_fabricacao, ano_modelo, fabricante, modelo, valor)
+values
+(?, ?, ?, ?, ?)
+
+O Hibernate gerou o SQL de inserção e nos mostrou na saída, pois configuramos
+isso no arquivo persistence.xml.
+
+Verificar na tabela os dados inseridos
+SELECT * FROM  tab_veiculo;
+
+![img_1.png](img_1.png)
+
+Agora vamos entender o que cada linha significa.
+
+- O código abaixo obtém um EntityManager da classe JpaUtil.
+
+EntityManager manager = JpaUtil.getEntityManager();
+
+- Agora iniciamos uma nova transação.
+
+EntityTransaction tx = manager.getTransaction();
+tx.begin();
+
+- Instanciamos um novo veículo e atribuímos alguns valores, chamando os
+métodos setters.
+
+Veiculo veiculo= new Veiculo("Fiat","Fiorino",2015,2015,50000.00);
+
+- Executamos o método persist, passando o veículo como parâmetro. Isso fará
+com que o JPA insira o objeto no banco de dados. Não informamos o código
+do veículo, porque ele será obtido automaticamente através do auto-increment do
+MySQL.
+
+manager.persist(veiculo);
+
+- Agora fazemos commit da transação, para efetivar a inserção do veículo no banco
+de dados.
+
+tx.commit();
+
+- Finalmente, fechamos o EntityManager e o EntityManagerFactory.
+
+manager.close();
+JpaUtil.close();
+
+## Buscando objetos pelo identificador
+
+Podemos recuperar objetos através do identificador (chave primária) da entidade.
+
+public static void main(String[] args) {
+
+        EntityManager manager= JPAUtil.getEntityManager();
+
+        Veiculo veiculo=manager.find(Veiculo.class, 1L);
+
+        System.out.println("Veiculo de Código "+ veiculo.getCodigo()+" é um "+veiculo.getModelo()+" ano fabricação "+veiculo.getAnoFabricacao());
+
+        manager.close();
+        JPAUtil.close();
+
+    }
+}
+
+O resultado na console é o seguinte:
+
+Hibernate:
+  select
+      veiculo0_.codigo as codigo1_0_0_,
+      veiculo0_.ano_fabricacao as ano_fabr2_0_0_,
+      veiculo0_.ano_modelo as ano_mode3_0_0_,
+      veiculo0_.fabricante as fabrican4_0_0_,
+      veiculo0_.modelo as modelo5_0_0_,
+      veiculo0_.valor as valor6_0_0_
+from
+      tab_veiculo veiculo0_
+where
+      veiculo0_.codigo=?
+
+Veiculo de Código 1 é um Fiorino ano fabricação 2015
+
+Veja que o SQL gerado possui a cláusula where, para filtrar apenas o veículo de
+código igual a 1.
+
+Podemos também buscar um objeto pelo identificador usando o método
+getReference.
+
+public class BuscandoVeiculo2 {
+public static void main(String[] args) {
+
+        EntityManager manager= JPAUtil.getEntityManager();
+
+        Veiculo veiculo= manager.getReference(Veiculo.class,1L);
+        System.out.println("Veiculo de Código "+veiculo.getCodigo()+" é um "+veiculo.getModelo());
+
+
+        manager.close();
+        JPAUtil.close();
+
+    }
+}
+
+O resultado na console é o seguinte:
+
+
+Hibernate:
+select
+      veiculo0_.codigo as codigo1_0_0_,
+      veiculo0_.ano_fabricacao as ano_fabr2_0_0_,
+      veiculo0_.ano_modelo as ano_mode3_0_0_,
+      veiculo0_.fabricante as fabrican4_0_0_,
+      veiculo0_.modelo as modelo5_0_0_,
+      veiculo0_.valor as valor6_0_0_
+from
+      tab_veiculo veiculo0_
+where
+      veiculo0_.codigo=?
+
+Veiculo de Código 1 é um Fiorino
+
+
+O resultado na console é o mesmo, deixando a impressão que os métodos find
+e getReference fazem a mesma coisa, mas na verdade, esses métodos possuem
+comportamentos um pouco diferentes.
+O método find busca o objeto imediatamente no banco de dados, enquanto
+getReference só executa o SQL quando o primeiro método getter for chamado,
+desde que não seja o getCodigo.
+
+
+public class BuscandoVeiculo3 {
+public static void main(String[] args) {
+
+        EntityManager manager= JPAUtil.getEntityManager();
+
+        Veiculo veiculo= manager.getReference(Veiculo.class,1L);
+        System.out.println("Buscou veículo. Será que executou o SELET?");
+        System.out.println("Veiculo de código "+veiculo.getCodigo()+" é um "+veiculo.getModelo());
+
+
+        manager.close();
+        JPAUtil.close();
+
+    }
+}
+
+Hibernate:
+select
+    veiculo0_.codigo as codigo1_0_0_,
+    veiculo0_.ano_fabricacao as ano_fabr2_0_0_,
+    veiculo0_.ano_modelo as ano_mode3_0_0_,
+    veiculo0_.fabricante as fabrican4_0_0_,
+    veiculo0_.modelo as modelo5_0_0_,
+    veiculo0_.valor as valor6_0_0_
+from
+    tab_veiculo veiculo0_
+where
+    veiculo0_.codigo=?
+Veiculo de código 1 é um Fiorino
+
+Note que o SQL foi executado apenas quando um getter foi invocado, e não na
+chamada de getReference.
+
+
+## Listando objetos
+
+Fazer consultas simples de entidades com a linguagem JPQL (Java Persistence Query Language). usaremos o básico para
+conseguirmos consultar no banco de dados.
+
+A JPQL é uma extensão da SQL, porém com características da orientação a
+objetos. Com essa linguagem, não referenciamos tabelas do banco de dados, mas
+apenas entidades de nosso modelo, que foram mapeadas para tabelas.
+
+Quando fazemos pesquisas em objetos, não precisamos selecionar as colunas do
+banco de dados, como é o caso da SQL. O código em SQL a seguir:
+
+select * from veiculo
+
+Fica da seguinte forma em JPQL:
+
+from Veiculo
+
+A sintaxe acima em JPQL significa que queremos buscar os objetos persistentes
+da classe Veiculo.
+public class ListandoVeiculos {
+public static void main(String[] args) {
+
+        EntityManager manager= JPAUtil.getEntityManager();
+
+        Query query = manager.createQuery("from Veiculo");
+        List<Veiculo>veiculos=query.getResultList();
+
+        for (Veiculo veiculo:veiculos
+             ) {
+            System.out.println(veiculo.getCodigo()+"-"
+            +veiculo.getFabricante()+", ano"
+            + veiculo.getAnoFabricacao()+"/"
+            + veiculo.getAnoModelo()+" por "
+            +"R$"+ veiculo.getValor());
+
+        }
+
+        manager.close();
+        JPAUtil.close();
+
+    }
+}
+
+
+O resultado na console foi o seguinte:
+Hibernate:
+select
+        veiculo0_.codigo as codigo1_0_,
+        veiculo0_.ano_fabricacao as ano_fabr2_0_,
+        veiculo0_.ano_modelo as ano_mode3_0_,
+        veiculo0_.fabricante as fabrican4_0_,
+        veiculo0_.modelo as modelo5_0_,
+        veiculo0_.valor as valor6_0_
+from
+tab_veiculo veiculo0_
+1-Fiat, ano2015/2015 por R$50000.0
+2-Honda, ano2012/2013 por R$90000.0
+3-Corsa , ano2022/2022 por R$110000.0
+4-VW, ano2019/2019 por R$70000.0
+5-Honda, ano2012/2013 por R$90000.0
+6-Corsa , ano2022/2022 por R$110000.0
+7-VW, ano2019/2019 por R$70000.0
+8-Honda, ano2012/2013 por R$90000.0
+9-Corsa , ano2022/2022 por R$110000.0
+10-VW, ano2019/2019 por R$70000.0
+
+
+![img_2.png](img_2.png)
+
+
+A consulta SQL foi gerada baseada nas informações do mapeamento, e todos os
+veículos da tabela foram listados.
+
+A única novidade no código-fonte que usamos são as seguintes linhas:
+
+Query query = manager.createQuery("from Veiculo");
+List<Veiculo> veiculos = query.getResultList();
+
+Veja que criamos uma query com a JPQL e armazenamos em uma variável query.
+Depois, executamos o método getResultList desse objeto e obtemos uma lista de
+veículos.
+
+## Atualizando objetos
+
+Os atributos de entidades podem ser manipulados através dos métodos setters,
+e todas as alterações serão detectadas e persistidas automaticamente, quando o
+contexto de persistência for descarregado para o banco de dados.
+
+VERIFICAR FABIO
+
+## Excluindo objetos
+
+A exclusão de objetos é feita chamando o método remove de EntityManager,
+passando como parâmetro o objeto.
+
+
+public class ExcluindoVeiculo {
+public static void main(String[] args) {
+
+        EntityManager manager= JPAUtil.getEntityManager();
+        EntityTransaction txs= manager.getTransaction();
+        txs.begin();
+
+        Veiculo veiculo=manager.find(Veiculo.class,1L);
+
+        manager.remove(veiculo);
+
+        txs.commit();
+        manager.close();
+        JPAUtil.close();
+
+    }
+}
+
+
+No console:
+
+Hibernate:
+select
+        veiculo0_.codigo as codigo1_0_0_,
+        veiculo0_.ano_fabricacao as ano_fabr2_0_0_,
+        veiculo0_.ano_modelo as ano_mode3_0_0_,
+        veiculo0_.fabricante as fabrican4_0_0_,
+        veiculo0_.modelo as modelo5_0_0_,
+        veiculo0_.valor as valor6_0_0_
+from
+        tab_veiculo veiculo0_
+where
+veiculo0_.codigo=?
+Hibernate:
+delete
+from
+        tab_veiculo
+where
+codigo=?
 
 
 
