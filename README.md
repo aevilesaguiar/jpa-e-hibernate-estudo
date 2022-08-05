@@ -603,6 +603,271 @@ from
 where
 codigo=?
 
+## Gerenciando Estados
+
+- Estados e ciclo de vida
+
+Objetos de entidades são instâncias de classes mapeadas usando JPA, que ficam
+na memória e representam registros do banco de dados. Essas instâncias
+possuem um ciclo de vida, que é gerenciado pelo JPA.
+
+Os estados do ciclo de vida das entidades são: transient (ou new), managed,
+detached e removed.
+
+![img_3.png](img_3.png)
+
+![img_4.png](img_4.png)
+
+As transições entre os estados são feitas através de métodos do EntityManager.
+
+- Objetos transientes
+
+Objetos transientes (transient) são instanciados usando o operador new. Isso
+significa que eles ainda não estão associados com um registro na tabela do banco
+de dados, e podem ser perdidos e coletados pelo garbage collector quando não
+estiver mais sendo usado.
+
+- Objetos gerenciados
+
+Objetos gerenciados (managed) são instâncias de entidades que possuem um
+identificador e representam um registro da tabela do banco de dados.
+
+As instâncias gerenciadas podem ser objetos que foram persistidos através da
+chamada de um método do EntityManager, como por exemplo o persist. Eles
+também podem ter se tornado gerenciados através de métodos de consulta do
+EntityManager, que buscam registros da base de dados e instanciam objetos
+diretamente no estado managed.
+
+Objetos gerenciados estão sempre associados a um contexto de persistência,
+portanto, quaisquer alterações nesses objetos são sincronizadas com o banco de
+dados.
+
+- Objetos removidos
+
+Uma instância de uma entidade pode ser excluída através do método remove do
+EntityManager.
+
+Um objeto entra no estado removed quando ele é marcado para ser eliminado, mas
+é fisicamente excluído durante a sincronização com o banco de dados.
+
+
+- Objetos desanexados
+
+Um objeto sempre inicia no estado transiente e depois pode se tornar gerenciado.
+Quando o Entity Manager é fechado, continua existindo uma instância do objeto,
+mas já no estado detached.
+
+Esse estado existe para quando os objetos estão desconectados, não tendo mais
+sincronia com o banco de dados. A JPA fornece operações para reconectar esses
+objetos a um novo EntityManager.
+
+## Contexto de persistência
+
+O contexto de persistência é uma coleção de objetos gerenciados por um
+EntityManager.
+
+Se uma entidade é pesquisada, mas ela já existe no contexto de persistência,
+o objeto existente é retornado, sem acessar o banco de dados. Esse recurso é
+chamado de cache de primeiro nível.
+
+Uma mesma entidade pode ser representada por diferentes objetos na memória,
+desde que seja em diferentes instâncias de EntityManagers. Em uma única
+instância de EntityManager, apenas um objeto que representa determinada
+entidade (com o mesmo identificador) pode ser gerenciada.
+
+EntityManager manager = JpaUtil.getEntityManager();
+
+Veiculo veiculo1 = manager.find(Veiculo.class, 2L);
+System.out.println("Buscou veiculo pela primeira vez...");
+
+Veiculo veiculo2 = manager.find(Veiculo.class, 2L);
+System.out.println("Buscou veiculo pela segunda vez...");
+
+System.out.println("Mesmo veículo? " + (veiculo1 == veiculo2));
+
+manager.close();
+JpaUtil.close();
+
+O código acima busca o mesmo veículo duas vezes, dentro do mesmo contexto
+de persistência. A consulta SQL foi executada apenas na primeira vez, pois na
+segunda, o objeto já estava no cache de primeiro nível. Veja a saída:
+
+Hibernate:
+    select
+        veiculo0_.codigo as codigo1_0_0_,
+        veiculo0_.ano_fabricacao as ano_fabr2_0_0_,
+        veiculo0_.ano_modelo as ano_mode3_0_0_,
+        veiculo0_.fabricante as fabrican4_0_0_,
+        veiculo0_.modelo as modelo5_0_0_,
+        veiculo0_.valor as valor6_0_0_
+    from
+        tab_veiculo veiculo0_
+    where
+        veiculo0_.codigo=?
+Buscou veiculo pela primeira vez...
+Buscou veiculo pela segunda vez...
+Mesmo veículo? true
+
+
+O método contains de EntityManager verifica se o objeto está sendo gerenciado
+pelo contexto de persistência do EntityManager. O método detach pára de
+gerenciar a entidade no contexto de persistência, colocando ela no estado
+detached.
+
+        EntityManager manager = JPAUtil.getEntityManager();
+
+        Veiculo veiculo1 = manager.find(Veiculo.class, 2L);
+        System.out.println("Buscou veiculo pela primeira vez...");
+
+        System.out.println("Gerenciado? " + manager.contains(veiculo1));
+        manager.detach(veiculo1);
+        System.out.println("E agora? " + manager.contains(veiculo1));
+
+        Veiculo veiculo2 = manager.find(Veiculo.class, 2L);
+        System.out.println("Buscou veiculo pela segunda vez...");
+
+        System.out.println("Mesmo veículo? " + (veiculo1 == veiculo2));
+
+
+        manager.close();
+        JPAUtil.close();
+
+Veja que agora a consulta foi executada duas vezes, pois desanexamos o veículo
+que estava sendo gerenciado pelo contexto de persistência.
+
+## Sincronização de dados
+
+Os estados de entidades são sincronizados com o banco de dados quando ocorre
+o commit da transação associada.
+
+Podemos forçar a sincronização antes mesmo do commit, chamando o método
+flush de EntityManager.
+
+## Salvando objetos desanexados com merge()
+
+Objetos desanexados são objetos em um estado que não é gerenciado pelo
+EntityManager, mas ainda representa uma entidade no banco de dados. As
+alterações em objetos desanexados não são sincronizadas com o banco de dados.
+
+Quando estamos desenvolvendo sistemas, existem diversos momentos que
+somos obrigados a trabalhar com objetos desanexados, por exemplo, quando eles
+são expostos para alteração através de páginas web e apenas em um segundo
+momento o usuário solicita a gravação das alterações do objeto.
+
+No código abaixo, alteramos o valor de um veículo em um momento que o objeto
+está no estado detached, por isso, a modificação não é sincronizada.
+
+Podemos reanexar objetos em qualquer EntityManager usando o método merge.
+
+
+
+public class ObjetosDesanexadosDetach {
+public static void main(String[] args) {
+
+        EntityManager manager= JPAUtil.getEntityManager();
+        EntityTransaction tx= manager.getTransaction();
+        tx.begin();//inicia uma transação com o BD
+
+        Veiculo veiculo=manager.find(Veiculo.class,2L);
+
+        tx.commit();
+        manager.close();
+
+        veiculo.setValor(99.00);
+
+        manager=JPAUtil.getEntityManager();
+        tx= manager.getTransaction();
+        tx.begin();
+
+        // reanexamos o objeto ao novo EntityManager
+        veiculo = manager.merge(veiculo);
+
+        tx.commit();
+        manager.close();
+        JPAUtil.close();
+
+
+
+    }
+}
+
+O conteúdo do objeto desanexado é copiado para um objeto gerenciado com a
+mesma identidade. Se o EntityManager ainda não estiver gerenciando um objeto
+com a mesma identidade, será realizada uma consulta para encontrá-lo, ou ainda,
+será persistida uma nova entidade.
+O retorno do método merge é uma instância de um objeto gerenciado. O objeto
+desanexado não muda de estado, ou seja, continua detached.
+
+
+## Mapeamento
+
+- Identificadores
+  A propriedade de identificação representa a chave primária de uma tabela do
+  banco de dados. Nos exemplos anteriores, a propriedade codigo de instâncias de
+  veículos representava o código do veículo (chave primária) no banco de dados.
+
+O identificador é mapeado para a chave primária codigo. Podemos alterar o nome
+da coluna usando @Column.
+
+@Id
+@GeneratedValue(strategy = GenerationType.AUTO)
+private Long codigo;
+
+A anotação @Id no atributo marca a propriedade como um identificador,
+e a anotação @GeneratedValue diz que o valor do identificador será gerado
+automaticamente usando uma estratégia nativa do banco de dados, que no caso
+do MySQL, é o auto-incremento.
+
+Este último mapeamento poderia ser modificado para a seguinte forma (e o
+significado seria o mesmo):
+
+A única mudança realizada foi a inclusão da propriedade strategy na anotação
+@GeneratedValue. Quando essa propriedade não é informada, é considerada a
+estratégia AUTO como padrão.
+
+
+Existe um gerador de chave próprio do Hibernate chamado increment, que é
+o famoso select max + 1. Para usá-lo, incluímos a anotação @GenericGenerator
+e informamos a propriedade strategy igual a increment, damos um nome a
+esse gerador informando o atributo name e depois associamos esse gerador na
+anotação @GeneratedValue, informando na propriedade generator o mesmo nome
+escolhido para o gerador.
+
+@Id
+@GeneratedValue(generator = "inc")
+@GenericGenerator(name = "inc", strategy = "increment")
+@Column(name = "cod_veiculo")
+private Long codigo;
+
+Apartir de agora, antes de fazer um insert de veículo, o framework executará
+um comando select para buscar o último identificador usado, e então fará um
+incremento para utilizar como próximo código. Veja a query gerada quando
+persistimos um novo veículo:
+
+Hibernate:
+        select
+              max(cod_veiculo)
+        from
+              tab_veiculo
+Hibernate:
+insert
+into
+            tab_veiculo
+            (ano_fabricacao, ano_modelo, fabricante, modelo, valor, cod_veiculo)
+values
+            (?, ?, ?, ?, ?, ?)
+
+Esses são os identificadores mais usados. Consulte a documentação caso precise
+de outro tipo de gerador. Se mesmo assim não encontrar um que atenda suas
+necessidades, você poderá desenvolver o seu próprio gerador customizado.
+
+
+## Chaves Compostas
+
+Para exemplificar o uso de chaves compostas, incluiremos os atributos cidade
+e placa como identificador de Veiculo. O atributo codigo não será mais o
+identificador, por isso precisaremos eliminá-lo.
+
 
 
 ## Referencias

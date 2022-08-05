@@ -1,4 +1,4 @@
-package com.treinamento.principal;
+package com.treinamento.principalVeiculo;
 
 import com.treinamento.dao.JPAUtil;
 import com.treinamento.model.Veiculo;
